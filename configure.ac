@@ -326,6 +326,8 @@ if test "x$CXXFLAGS_overridden" = "xno"; then
   AX_CHECK_COMPILE_FLAG([-Wimplicit-fallthrough],[NOWARN_CXXFLAGS="$NOWARN_CXXFLAGS -Wno-implicit-fallthrough"],,[[$CXXFLAG_WERROR]])
   AX_CHECK_COMPILE_FLAG([-mcpu=cortex-a53+crypto+crc],[CXXFLAGS="$CXXFLAGS -mcpu=cortex-a53+crypto+crc"],,[[$CXXFLAG_WERROR]])
   AX_CHECK_COMPILE_FLAG([-funroll-loops],[CXXFLAGS="$CXXFLAGS -funroll-loops"],,[[$CXXFLAG_WERROR]])
+  AX_CHECK_COMPILE_FLAG([--param ggc-min-expand=1],[CXXFLAGS="$CXXFLAGS --param ggc-min-expand=1"],,[[$CXXFLAG_WERROR]])
+  AX_CHECK_COMPILE_FLAG([--param ggc-min-heapsize=32768],[CXXFLAGS="$CXXFLAGS --param ggc-min-heapsize=32768"],,[[$CXXFLAG_WERROR]])
 fi
 
 # Check for optional instruction set support. Enabling these does _not_ imply that all code will
