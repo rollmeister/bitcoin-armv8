@@ -1,3 +1,56 @@
+This fork of the official Bitcoin Core wallet and node software employs hardware acceleration features on ArmV8. It can be used on Cortex-a53 and higher based cpu's running Linux. Raspberry Pi 3 Model B+ (and later model) single board computers should work even if using the 32-bit Rasbpian Linux OS, though this is untested at time of writing. If you board lacks the required hardware extensions ("cat /proc/cpuinfo" check for sha1, sha2, pmull & crc32 Features), the software will either fail to compile or run.
+
+Below are benchmark comparisons of the original and forked repository outputted by src/bench/bench_bitcoin.
+Tests that had negligible difference were removed. The most notable gain is the SHA256 tests. SHA256D64_1024 indicates no benefit however also does not apply in this case as whilst a new SHA256D64 function is defined in src/crypto/sha256.cpp, only the benchmarking utility employs it at time of writing. The Bitcoin Core still uses the multiple SHA256 Transform's to compute SHA256D and so gains from the ArmV8 crypto acceleration with ≈700% benchmarked improvement compared to default C++ implementation.
+
+Benchmark (real world significance in bold) | Percentage improvement
+------------ | -------------
+**AssembleBlock** | 30%
+Base58CheckEncode | 9%
+Bech32Decode | 14%
+Bech32Encode | 7%
+**CCoinsCaching** | 88%
+**DeserializeAndCheckBlockTest** | 40%
+**DeserializeBlockTest** | 67%
+MempoolEviction | 5%
+RollingBloom | 7%
+SHA1 | 371%
+**SHA256** | 681%
+**SHA256_32b** | 338%
+
+The following algorithms and files were updated and listed in order of significance.
+
+Bitcoins central hashing algorithm.
+SHA256 (src/crypto/sha256.cpp)
+
+Used by leveldb library as part of block processing. Raw CRC32 computations are 5x faster.
+CRC32 (port_posix_sse.cc & port_posix.cc in src/leveldb/port/)
+
+Possibly used in Bitcoin currency transactions, or not at all.
+SHA1 (src/crypto/sha1.cpp)
+
+configure.ac has superfluous changes for CRC32 support checks, and compulsory architecture specific feature modifier compiler flags and -funroll-loops.
+
+Compiled with Clang 6 -O2 on Ubuntu 16.04. For faster compile you could do...
+
+git clean -xdf
+
+./autogen.sh
+
+./configure --disable-tests --disable-bench
+
+make -j 1
+
+or -j 2 if 2gb ram or compiling with Clang (i.e. add CC="clang-6.0" CXX="clang++-6.0" to configure and make)
+
+The changes to code were tested for validity using src/test/test_bitcoin and separate run time tests where output of the new functions ran side by side with the original for several hours and compared output of both to be identical. There is no guarantee or warranty of any kind. This fork inherits the same licences and liability wavers of its parent Bitcoin Core branch. USE AT YOUR OWN RISK.
+
+###### Other notes. 
+Implementing ArmV8 SHA256 for secp256k1 was attempted during development. Due to the library being coded in the 1989 ANSI C standard and requires extra hacking to allow intrinsics to compile. Minor benefits are to be expected in doing so.
+Changes are not very maintainable, that is compilation for other platforms will fail and further releases require merging into it. Lack of skill & time in changing compiling scripts for easily maintainable commits. Mostly using preprocessor conditionals to include ArmV8 specific code.
+
+Software dependencies detailed in doc/build-unix.md still apply.
+
 Bitcoin Core integration/staging tree
 =====================================
 
