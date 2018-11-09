@@ -324,6 +324,8 @@ if test "x$CXXFLAGS_overridden" = "xno"; then
   AX_CHECK_COMPILE_FLAG([-Wunused-local-typedef],[NOWARN_CXXFLAGS="$NOWARN_CXXFLAGS -Wno-unused-local-typedef"],,[[$CXXFLAG_WERROR]])
   AX_CHECK_COMPILE_FLAG([-Wdeprecated-register],[NOWARN_CXXFLAGS="$NOWARN_CXXFLAGS -Wno-deprecated-register"],,[[$CXXFLAG_WERROR]])
   AX_CHECK_COMPILE_FLAG([-Wimplicit-fallthrough],[NOWARN_CXXFLAGS="$NOWARN_CXXFLAGS -Wno-implicit-fallthrough"],,[[$CXXFLAG_WERROR]])
+  AX_CHECK_COMPILE_FLAG([-mcpu=cortex-a53+crypto+crc],[CXXFLAGS="$CXXFLAGS -mcpu=cortex-a53+crypto+crc"],,[[$CXXFLAG_WERROR]])
+  AX_CHECK_COMPILE_FLAG([-funroll-loops],[CXXFLAGS="$CXXFLAGS -funroll-loops"],,[[$CXXFLAG_WERROR]])
 fi
 
 # Check for optional instruction set support. Enabling these does _not_ imply that all code will
@@ -336,6 +338,9 @@ AX_CHECK_COMPILE_FLAG([-msse4 -msha],[[SHANI_CXXFLAGS="-msse4 -msha"]],,[[$CXXFL
 
 TEMP_CXXFLAGS="$CXXFLAGS"
 CXXFLAGS="$CXXFLAGS $SSE42_CXXFLAGS"
+
+# aarch32/64 also have crc32 acceleration but different intrinsics.
+# Implementation dirty hacked into src/leveldb/port/port_posix_sse.c
 AC_MSG_CHECKING(for assembler crc32 support)
 AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
     #include <stdint.h>
@@ -343,13 +348,23 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
     #include <intrin.h>
     #elif defined(__GNUC__) && defined(__SSE4_2__)
     #include <nmmintrin.h>
+    #elif defined(__aarch32__) || defined (__aarch64__)
+    #include <arm_acle.h>
     #endif
   ]],[[
+    #if defined(__aarch32__) || defined (__aarch64__)
+    uint64_t l = 0;
+    l = __crc32b(l, 0);
+    l = __crc32w(l, 0);
+    l = __crc32d(l, 0);
+    return l;
+    #else
     uint64_t l = 0;
     l = _mm_crc32_u8(l, 0);
     l = _mm_crc32_u32(l, 0);
     l = _mm_crc32_u64(l, 0);
     return l;
+    #endif
   ]])],
  [ AC_MSG_RESULT(yes); enable_hwcrc32=yes],
  [ AC_MSG_RESULT(no)]
