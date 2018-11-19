@@ -45,6 +45,7 @@ namespace sha256_shani
 void Transform(uint32_t* s, const unsigned char* chunk, size_t blocks);
 }
 
+
 // Internal implementation code.
 namespace
 {
@@ -68,6 +69,243 @@ void inline Round(uint32_t a, uint32_t b, uint32_t c, uint32_t& d, uint32_t e, u
     h = t1 + t2;
 }
 
+alignas(16) static const uint32_t K[192] = {
+	/* transform 1 */
+	0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,
+	0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+	0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,
+	0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+	0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,
+	0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+	0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,
+	0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+	0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,
+	0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+	0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,
+	0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+	0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,
+	0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+	0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,
+	0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2,
+	/* transform 2 */
+	0xc28a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,
+	0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+	0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,
+	0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf374,
+	0x649b69c1,0xf0fe4786,0x0fe1edc6,0x240cf254,
+	0x4fe9346f,0x6cc984be,0x61b9411e,0x16f988fa,
+	0xf2c65152,0xa88e5a6d,0xb019fc65,0xb9d99ec7,
+	0x9a1231c3,0xe70eeaa0,0xfdb1232b,0xc7353eb0,
+	0x3069bad5,0xcb976d5f,0x5a0f118f,0xdc1eeefd,
+	0x0a35b689,0xde0b7a04,0x58f4ca9d,0xe15d5b16,
+	0x007f3e86,0x37088980,0xa507ea32,0x6fab9537,
+	0x17406110,0x0d8cd6f1,0xcdaa3b6d,0xc0bbbe37,
+	0x83613bda,0xdb48a363,0x0b02e931,0x6fd15ca7,
+	0x521afaca,0x31338431,0x6ed41a95,0x6d437890,
+	0xc39c91f2,0x9eccabbd,0xb5c9a0e6,0x532fb63c,
+	0xd2c741c6,0x07237ea3,0xa4954b68,0x4c191d76,
+	/* transform 3 */
+	0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,
+	0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+	0x5807aa98,0x12835b01,0x243185be,0x550c7dc3,
+	0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf274,
+	0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,
+	0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+	0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,
+	0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+	0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,
+	0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+	0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,
+	0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+	0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,
+	0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+	0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,
+	0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
+};
+
+#define Rx(T0, T1, K, W0, W1, W2, W3)      \
+	W0 = vsha256su0q_u32( W0, W1 );    \
+	d2 = d0;                           \
+	T1 = vaddq_u32(W1, K); 		   \
+	d0 = vsha256hq_u32( d0, d1, T0 );  \
+	d1 = vsha256h2q_u32( d1, d2, T0 ); \
+	W0 = vsha256su1q_u32( W0, W2, W3 );
+
+#define Rxx(T0, T1, K, W0, W1, W2, W3)      \
+	W1 = vsha256su0q_u32( W1, W2 );    \
+	d2 = d0;                           \
+	T1 = vaddq_u32(W1, K); 		   \
+	d0 = vsha256hq_u32( d0, d1, T0 );  \
+	d1 = vsha256h2q_u32( d1, d2, T0 ); \
+	W0 = vsha256su1q_u32( W0, W2, W3 );
+
+#define Ry(T0, T1, K, W1)                  \
+	d2 = d0;                           \
+	T1 = vaddq_u32(W1, K); 		   \
+	d0 = vsha256hq_u32( d0, d1, T0 );  \
+	d1 = vsha256h2q_u32( d1, d2, T0 );
+
+#define Rya(T0, T1, K, W1)			   \
+	d2 = d0;                           \
+	T1 = vaddq_u32(W1, K); 		   \
+	d0 = vsha256hq_u32( d0, d1, T0 );  \
+	d1 = vsha256h2q_u32( d1, d2, T0 );
+
+#define Ryb(T0, T1, K)			   \
+	d2 = d0;                           \
+	T1 = K; 			   \
+	d0 = vsha256hq_u32( d0, d1, T0 );  \
+	d1 = vsha256h2q_u32( d1, d2, T0 );
+
+#define Ryc(T0,T1, K, W0, W1)			   \
+	W0 = vsha256su0q_u32( W0, W1 );    \
+	d2 = d0;                           \
+	T1 = vaddq_u32(W1, K); 		   \
+	d0 = vsha256hq_u32( d0, d1, T0 );  \
+	d1 = vsha256h2q_u32( d1, d2, T0 );
+
+#define Rz(T0)                             \
+	d2 = d0;                       	   \
+	d0 = vsha256hq_u32( d0, d1, T0 );  \
+	d1 = vsha256h2q_u32( d1, d2, T0 );
+
+// These custom macros were attempted for transform 3
+#define Tx(T0, K, W0)      \
+	T0 = vaddq_u32(W0, K); 		   \
+	d2 = d0;                           \
+	d0 = vsha256hq_u32( d0, d1, K );  \
+	d1 = vsha256h2q_u32( d1, d2, K ); \
+
+#define Ty(T1, W)                  \
+	d2 = d0;                           \
+	d0 = vsha256hq_u32( d0, d1, T1 );  \
+	d1 = vsha256h2q_u32( d1, d2, T1 );
+
+
+#define Rty(K, W)                  \
+	d2 = d0;                           \
+	t0 = vaddq_u32(W, K); 		   \
+	d0 = vsha256hq_u32( d0, d1, t0 );  \
+	d1 = vsha256h2q_u32( d1, d2, t0 );
+
+#define Rtx(K, W0, W1, W2, W3)		   \
+	W0 = vsha256su0q_u32( W0, W1 );    \
+	d2 = d0;                           \
+	t0 = vaddq_u32(W0, K); 		   \
+	d0 = vsha256hq_u32( d0, d1, t0 );  \
+	d1 = vsha256h2q_u32( d1, d2, t0 ); \
+	W0 = vsha256su1q_u32( W0, W2, W3 );
+
+#define Rx1(K, W0, W1, W2, W3)		   \
+	W0[1] += 0xa00000;	           \
+	W0 = vsha256su0q_u32( W0, W1 );    \
+	d2 = d0;                           \
+	t0 = vaddq_u32(W1, K); 		   \
+	d0 = vsha256hq_u32( d0, d1, t0 );  \
+	d1 = vsha256h2q_u32( d1, d2, t0 ); \
+	W0 = vsha256su1q_u32( W0, W2, W3 );
+
+#define Rx2(K, W0, W1, W2, W3)		   \
+	W1[2] += 0x100;			   \
+	W1[3] += 0x11002000;		   \
+	W0 = vsha256su0q_u32( W0, W1 );    \
+	d2 = d0;                           \
+	t0 = vaddq_u32(W1, K); 		   \
+	d0 = vsha256hq_u32( d0, d1, t0 );  \
+	d1 = vsha256h2q_u32( d1, d2, t0 ); \
+	W0 = vsha256su1q_u32( W0, W2, W3 );
+
+#define Rx3(K, W0, W1, W2, W3)      \
+	W2[0] = 0x80000000;	           \
+	W0 = vsha256su0q_u32( W0, W1 );    \
+	d2 = d0;                           \
+	t0 = vaddq_u32(W1, K); 		   \
+	d0 = vsha256hq_u32( d0, d1, t0 );  \
+	d1 = vsha256h2q_u32( d1, d2, t0 ); \
+	W0 = vsha256su1q_u32( W0, W2, W3 );
+
+#define Rx4(K, W0, W1, W2, W3)      \
+	W3[2] = 0x400022;	           \
+	W3[3] = 0x100;	           \
+	W0 = vsha256su0q_u32( W0, W1 );    \
+	d2 = d0;                           \
+	t0 = vaddq_u32(W1, K); 		   \
+	d0 = vsha256hq_u32( d0, d1, t0 );  \
+	d1 = vsha256h2q_u32( d1, d2, t0 ); \
+	W0 = vsha256su1q_u32( W0, W2, W3 );
+
+// This is a port of Intel's _mm_set_epi64x taken from an Android library
+static inline __attribute__((always_inline)) uint32x4_t _mm_set_epi64x(const uint64_t a, const uint64_t b)
+{
+    return vreinterpretq_u32_u64(vcombine_u64(vcreate_u64(b), vcreate_u64(a)));
+}
+
+
+// Shani sha256 funtion port attempts (transform 3)
+#define QuadRound1(D0, D1, W, K1, K0)                             \
+	t0 = D0;                       	   \
+	t1 = vaddq_u32(W, _mm_set_epi64x(K1,K0));	\
+	d0 = vsha256hq_u32( D0, D1, t1 );  \
+	d1 = vsha256h2q_u32( D1, t0, t1 );
+
+#define QuadRound2(D0, D1, K1, K0)                             \
+	t0 = D0;                       	   \
+      	t1 = _mm_set_epi64x(K1,K0);	\
+	d0 = vsha256hq_u32( D0, D1, t1 );  \
+	d1 = vsha256h2q_u32( D1, t0, t1 );
+
+#define QuadRound(D0, D1, W0, W1, W2, W3, K1, K0)      \
+	W0 = vsha256su0q_u32( W0, W1 );    \
+	d2 = D0;                           \
+	t0 = vaddq_u32(W0, _mm_set_epi64x(K1,K0));	\
+	D0 = vsha256hq_u32( D0, D1, t0 );  \
+	D1 = vsha256h2q_u32( D1, d2, t0 ); \
+	W0 = vsha256su1q_u32( W0, W2, W3 );
+/*
+void inline  __attribute__((always_inline)) QuadRound(uint32x4_t &state0, uint32x4_t &state1, uint64_t k1, uint64_t k0)
+{
+      uint32x4_t TMP2 =*state0;
+      uint32x4_t TMP0 = _mm_set_epi64x(k1,k0);
+      state0 = vsha256hq_u32(*state0, *state1, TMP0);
+      &state1 = vsha256h2q_u32(*state1, TMP2, TMP0);
+} 
+
+void inline  __attribute__((always_inline)) QuadRound(uint32x4_t state0, uint32x4_t state1, uint32x4_t m, uint64_t k1, uint64_t k0)
+{
+      uint32x4_t TMP2 = state0;
+      uint32x4_t TMP0 = vaddq_u32(m, _mm_set_epi64x(k1,k0));
+      state0 = vsha256hq_u32(state0, state1, TMP0);
+      state1 = vsha256h2q_u32(state1, TMP2, TMP0);
+}*/
+
+#define ShiftMessageA(M0, M1)                             \
+	M0 = vsha256su0q_u32(M0, M1);
+
+#define ShiftMessageC(M0, M1, M2)                             \
+	M0 = vsha256su1q_u32(M0, M1, M2);
+
+#define ShiftMessageB(M0, M1, M2)                             \
+    ShiftMessageC(M0, M1, M2);  \
+    ShiftMessageA(M0, M1);
+/*
+void inline  __attribute__((always_inline)) ShiftMessageA(uint32x4_t m0, uint32x4_t m1)
+{
+    m0 = vsha256su0q_u32(m0, m1);
+}
+
+void inline  __attribute__((always_inline)) ShiftMessageC(uint32x4_t m0, uint32x4_t m1, uint32x4_t m2)
+{
+    m2 = vsha256su1q_u32(m0, m1, m2);
+}
+
+void inline __attribute__((always_inline)) ShiftMessageB(uint32x4_t m0, uint32x4_t m1, uint32x4_t m2)
+{
+    ShiftMessageC(m0, m1, m2);
+    ShiftMessageA(m0, m1);
+}
+*/
+
+
 alignas(16) static const uint32x4x2_t sha256_h_neon = {
     0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
     0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
@@ -90,39 +328,13 @@ void inline Initialize(uint32_t* s)
     s[6] = 0x1f83d9abul;
     s[7] = 0x5be0cd19ul;
 #endif
-/*for(uint32_t i = 0; i < 8; i++) {
-if(s1[i] != s[i]) {
-printf("void inline Initialize fail\n");
-}
-}*/
 }
 
 /** Perform a number of SHA-256 transformations, processing 64-byte chunks. */
-void Transform(uint32_t* s, const unsigned char* chunk, size_t blocks)
+inline void Transform(uint32_t* s, const unsigned char* chunk, size_t blocks)
 {
 
 #if defined(USING_ARMV8_CRYPTO_EXT)
-/*
-alignas(16) uint32_t s2[8], s1[8];
-memcpy(s2, s, 32);*/
-   alignas(16) static const uint32_t K[] = {
-      0x428A2F98, 0x71374491, 0xB5C0FBCF, 0xE9B5DBA5,
-      0x3956C25B, 0x59F111F1, 0x923F82A4, 0xAB1C5ED5,
-      0xD807AA98, 0x12835B01, 0x243185BE, 0x550C7DC3,
-      0x72BE5D74, 0x80DEB1FE, 0x9BDC06A7, 0xC19BF174,
-      0xE49B69C1, 0xEFBE4786, 0x0FC19DC6, 0x240CA1CC,
-      0x2DE92C6F, 0x4A7484AA, 0x5CB0A9DC, 0x76F988DA,
-      0x983E5152, 0xA831C66D, 0xB00327C8, 0xBF597FC7,
-      0xC6E00BF3, 0xD5A79147, 0x06CA6351, 0x14292967,
-      0x27B70A85, 0x2E1B2138, 0x4D2C6DFC, 0x53380D13,
-      0x650A7354, 0x766A0ABB, 0x81C2C92E, 0x92722C85,
-      0xA2BFE8A1, 0xA81A664B, 0xC24B8B70, 0xC76C51A3,
-      0xD192E819, 0xD6990624, 0xF40E3585, 0x106AA070,
-      0x19A4C116, 0x1E376C08, 0x2748774C, 0x34B0BCB5,
-      0x391C0CB3, 0x4ED8AA4A, 0x5B9CCA4F, 0x682E6FF3,
-      0x748F82EE, 0x78A5636F, 0x84C87814, 0x8CC70208,
-      0x90BEFFFA, 0xA4506CEB, 0xBEF9A3F7, 0xC67178F2,
-   };
 
    alignas(16) uint32x4_t STATE0, STATE1, ABEF_SAVE, CDGH_SAVE;
    alignas(16) uint32x4_t MSG0, MSG1, MSG2, MSG3;
@@ -132,31 +344,26 @@ memcpy(s2, s, 32);*/
    STATE0 = vld1q_u32(&s[0]);
    STATE1 = vld1q_u32(&s[4]);
 
-   // Intermediate void* cast due to https://llvm.org/bugs/show_bug.cgi?id=20670
-   alignas(16) const uint32x4_t* input32 = reinterpret_cast<const uint32x4_t*>(chunk);
-//size_t block = blocks;
+   alignas(16) const uint8x16_t* input32 = reinterpret_cast<const uint8x16_t*>(chunk);
+
    while (blocks--)
       {
       // Save current state
       ABEF_SAVE = STATE0;
       CDGH_SAVE = STATE1;
 
-      MSG0 = *input32++;
-      MSG1 = *input32++;
-      MSG2 = *input32++;
-      MSG3 = *input32++;
+      // Load and Convert input chunk to Big Endian
+      MSG0 = vreinterpretq_u32_u8(vrev32q_u8(*input32++));
+      MSG1 = vreinterpretq_u32_u8(vrev32q_u8(*input32++));
+      MSG2 = vreinterpretq_u32_u8(vrev32q_u8(*input32++));
+      MSG3 = vreinterpretq_u32_u8(vrev32q_u8(*input32++));
 
-      MSG0 = vreinterpretq_u32_u8(vrev32q_u8(vreinterpretq_u8_u32(MSG0)));
-      MSG1 = vreinterpretq_u32_u8(vrev32q_u8(vreinterpretq_u8_u32(MSG1)));
-      MSG2 = vreinterpretq_u32_u8(vrev32q_u8(vreinterpretq_u8_u32(MSG2)));
-      MSG3 = vreinterpretq_u32_u8(vrev32q_u8(vreinterpretq_u8_u32(MSG3)));
-
-      TMP0 = vaddq_u32(MSG0, vld1q_u32(&K[0x00]));
+      TMP0 = vaddq_u32(MSG0, vld1q_u32(&K[0]));
 
       // Rounds 0-3
       MSG0 = vsha256su0q_u32(MSG0, MSG1);
       TMP2 = STATE0;
-      TMP1 = vaddq_u32(MSG1, vld1q_u32(&K[0x04]));
+      TMP1 = vaddq_u32(MSG1, vld1q_u32(&K[4]));
       STATE0 = vsha256hq_u32(STATE0, STATE1, TMP0);
       STATE1 = vsha256h2q_u32(STATE1, TMP2, TMP0);
       MSG0 = vsha256su1q_u32(MSG0, MSG2, MSG3);
@@ -164,7 +371,7 @@ memcpy(s2, s, 32);*/
       // Rounds 4-7
       MSG1 = vsha256su0q_u32(MSG1, MSG2);
       TMP2 = STATE0;
-      TMP0 = vaddq_u32(MSG2, vld1q_u32(&K[0x08]));
+      TMP0 = vaddq_u32(MSG2, vld1q_u32(&K[8]));
       STATE0 = vsha256hq_u32(STATE0, STATE1, TMP1);
       STATE1 = vsha256h2q_u32(STATE1, TMP2, TMP1);
       MSG1 = vsha256su1q_u32(MSG1, MSG3, MSG0);
@@ -172,7 +379,7 @@ memcpy(s2, s, 32);*/
       // Rounds 8-11
       MSG2 = vsha256su0q_u32(MSG2, MSG3);
       TMP2 = STATE0;
-      TMP1 = vaddq_u32(MSG3, vld1q_u32(&K[0x0c]));
+      TMP1 = vaddq_u32(MSG3, vld1q_u32(&K[12]));
       STATE0 = vsha256hq_u32(STATE0, STATE1, TMP0);
       STATE1 = vsha256h2q_u32(STATE1, TMP2, TMP0);
       MSG2 = vsha256su1q_u32(MSG2, MSG0, MSG1);
@@ -180,7 +387,7 @@ memcpy(s2, s, 32);*/
       // Rounds 12-15
       MSG3 = vsha256su0q_u32(MSG3, MSG0);
       TMP2 = STATE0;
-      TMP0 = vaddq_u32(MSG0, vld1q_u32(&K[0x10]));
+      TMP0 = vaddq_u32(MSG0, vld1q_u32(&K[16]));
       STATE0 = vsha256hq_u32(STATE0, STATE1, TMP1);
       STATE1 = vsha256h2q_u32(STATE1, TMP2, TMP1);
       MSG3 = vsha256su1q_u32(MSG3, MSG1, MSG2);
@@ -188,7 +395,7 @@ memcpy(s2, s, 32);*/
       // Rounds 16-19
       MSG0 = vsha256su0q_u32(MSG0, MSG1);
       TMP2 = STATE0;
-      TMP1 = vaddq_u32(MSG1, vld1q_u32(&K[0x14]));
+      TMP1 = vaddq_u32(MSG1, vld1q_u32(&K[20]));
       STATE0 = vsha256hq_u32(STATE0, STATE1, TMP0);
       STATE1 = vsha256h2q_u32(STATE1, TMP2, TMP0);
       MSG0 = vsha256su1q_u32(MSG0, MSG2, MSG3);
@@ -196,7 +403,7 @@ memcpy(s2, s, 32);*/
       // Rounds 20-23
       MSG1 = vsha256su0q_u32(MSG1, MSG2);
       TMP2 = STATE0;
-      TMP0 = vaddq_u32(MSG2, vld1q_u32(&K[0x18]));
+      TMP0 = vaddq_u32(MSG2, vld1q_u32(&K[24]));
       STATE0 = vsha256hq_u32(STATE0, STATE1, TMP1);
       STATE1 = vsha256h2q_u32(STATE1, TMP2, TMP1);
       MSG1 = vsha256su1q_u32(MSG1, MSG3, MSG0);
@@ -204,7 +411,7 @@ memcpy(s2, s, 32);*/
       // Rounds 24-27
       MSG2 = vsha256su0q_u32(MSG2, MSG3);
       TMP2 = STATE0;
-      TMP1 = vaddq_u32(MSG3, vld1q_u32(&K[0x1c]));
+      TMP1 = vaddq_u32(MSG3, vld1q_u32(&K[28]));
       STATE0 = vsha256hq_u32(STATE0, STATE1, TMP0);
       STATE1 = vsha256h2q_u32(STATE1, TMP2, TMP0);
       MSG2 = vsha256su1q_u32(MSG2, MSG0, MSG1);
@@ -212,7 +419,7 @@ memcpy(s2, s, 32);*/
       // Rounds 28-31
       MSG3 = vsha256su0q_u32(MSG3, MSG0);
       TMP2 = STATE0;
-      TMP0 = vaddq_u32(MSG0, vld1q_u32(&K[0x20]));
+      TMP0 = vaddq_u32(MSG0, vld1q_u32(&K[32]));
       STATE0 = vsha256hq_u32(STATE0, STATE1, TMP1);
       STATE1 = vsha256h2q_u32(STATE1, TMP2, TMP1);
       MSG3 = vsha256su1q_u32(MSG3, MSG1, MSG2);
@@ -220,7 +427,7 @@ memcpy(s2, s, 32);*/
       // Rounds 32-35
       MSG0 = vsha256su0q_u32(MSG0, MSG1);
       TMP2 = STATE0;
-      TMP1 = vaddq_u32(MSG1, vld1q_u32(&K[0x24]));
+      TMP1 = vaddq_u32(MSG1, vld1q_u32(&K[36]));
       STATE0 = vsha256hq_u32(STATE0, STATE1, TMP0);
       STATE1 = vsha256h2q_u32(STATE1, TMP2, TMP0);
       MSG0 = vsha256su1q_u32(MSG0, MSG2, MSG3);
@@ -228,7 +435,7 @@ memcpy(s2, s, 32);*/
       // Rounds 36-39
       MSG1 = vsha256su0q_u32(MSG1, MSG2);
       TMP2 = STATE0;
-      TMP0 = vaddq_u32(MSG2, vld1q_u32(&K[0x28]));
+      TMP0 = vaddq_u32(MSG2, vld1q_u32(&K[40]));
       STATE0 = vsha256hq_u32(STATE0, STATE1, TMP1);
       STATE1 = vsha256h2q_u32(STATE1, TMP2, TMP1);
       MSG1 = vsha256su1q_u32(MSG1, MSG3, MSG0);
@@ -236,7 +443,7 @@ memcpy(s2, s, 32);*/
       // Rounds 40-43
       MSG2 = vsha256su0q_u32(MSG2, MSG3);
       TMP2 = STATE0;
-      TMP1 = vaddq_u32(MSG3, vld1q_u32(&K[0x2c]));
+      TMP1 = vaddq_u32(MSG3, vld1q_u32(&K[44]));
       STATE0 = vsha256hq_u32(STATE0, STATE1, TMP0);
       STATE1 = vsha256h2q_u32(STATE1, TMP2, TMP0);
       MSG2 = vsha256su1q_u32(MSG2, MSG0, MSG1);
@@ -244,26 +451,26 @@ memcpy(s2, s, 32);*/
       // Rounds 44-47
       MSG3 = vsha256su0q_u32(MSG3, MSG0);
       TMP2 = STATE0;
-      TMP0 = vaddq_u32(MSG0, vld1q_u32(&K[0x30]));
+      TMP0 = vaddq_u32(MSG0, vld1q_u32(&K[48]));
       STATE0 = vsha256hq_u32(STATE0, STATE1, TMP1);
       STATE1 = vsha256h2q_u32(STATE1, TMP2, TMP1);
       MSG3 = vsha256su1q_u32(MSG3, MSG1, MSG2);
 
       // Rounds 48-51
       TMP2 = STATE0;
-      TMP1 = vaddq_u32(MSG1, vld1q_u32(&K[0x34]));
+      TMP1 = vaddq_u32(MSG1, vld1q_u32(&K[52]));
       STATE0 = vsha256hq_u32(STATE0, STATE1, TMP0);
       STATE1 = vsha256h2q_u32(STATE1, TMP2, TMP0);
 
       // Rounds 52-55
       TMP2 = STATE0;
-      TMP0 = vaddq_u32(MSG2, vld1q_u32(&K[0x38]));
+      TMP0 = vaddq_u32(MSG2, vld1q_u32(&K[56]));
       STATE0 = vsha256hq_u32(STATE0, STATE1, TMP1);
       STATE1 = vsha256h2q_u32(STATE1, TMP2, TMP1);
 
       // Rounds 56-59
       TMP2 = STATE0;
-      TMP1 = vaddq_u32(MSG3, vld1q_u32(&K[0x3c]));
+      TMP1 = vaddq_u32(MSG3, vld1q_u32(&K[60]));
       STATE0 = vsha256hq_u32(STATE0, STATE1, TMP0);
       STATE1 = vsha256h2q_u32(STATE1, TMP2, TMP0);
 
@@ -370,9 +577,233 @@ memcpy(s2, s, 32);*/
 
 }
 
-void TransformD64(unsigned char* out, const unsigned char* in)
+/* armv8 implmentation of sha256d transform */
+inline void TransformD64(unsigned char* out, const unsigned char* in)
 {
-    // Transform 1
+	/* state */
+	alignas(16) uint32x4_t s0, s1;
+	/* message input */
+	alignas(16) uint32x4_t w0, w1, w2, w3;
+	/* temporary work on state */
+	alignas(16) uint32x4_t d0, d1, d2;
+	/* message & constant addition */
+	alignas(16) uint32x4_t t0, t1;
+
+	/* load initial state */
+	s0 = sha256_h_neon.val[0];
+	s1 = sha256_h_neon.val[1];
+
+	/* cast neon datatype pointer to message input */
+	alignas(16) const uint8x16_t* data = reinterpret_cast<const uint8x16_t*>(in);
+
+	/* load and bswap32 input message digest to Big Endian */
+	w0 = vreinterpretq_u32_u8(vrev32q_u8(*data++));
+	w1 = vreinterpretq_u32_u8(vrev32q_u8(*data++));
+	w2 = vreinterpretq_u32_u8(vrev32q_u8(*data++));
+	w3 = vreinterpretq_u32_u8(vrev32q_u8(*data++));
+
+	/* cast neon datatype pointer to parse sha256d transform step constants */
+	alignas(16) const uint32x4_t* k = reinterpret_cast<const uint32x4_t*>(K);
+
+		/* transform 1 */
+	/* initialize t0 for first round */
+	t0 = w0 + k[0];
+
+	/* work on copy of initial state */
+	d0 = s0;
+	d1 = s1;
+
+	/* perform rounds of four */
+	Rx(t0, t1, k[1], w0, w1, w2, w3);
+	Rx(t1, t0, k[2], w1, w2, w3, w0);
+	Rx(t0, t1, k[3], w2, w3, w0, w1);
+	Rx(t1, t0, k[4], w3, w0, w1, w2);
+	Rx(t0, t1, k[5], w0, w1, w2, w3);
+	Rx(t1, t0, k[6], w1, w2, w3, w0);
+	Rx(t0, t1, k[7], w2, w3, w0, w1);
+	Rx(t1, t0, k[8], w3, w0, w1, w2);
+	Rx(t0, t1, k[9], w0, w1, w2, w3);
+	Rx(t1, t0, k[10], w1, w2, w3, w0);
+	Rx(t0, t1, k[11], w2, w3, w0, w1);
+	Rx(t1, t0, k[12], w3, w0, w1, w2);
+	Ry(t0, t1, k[13], w1);
+	Ry(t1, t0, k[14], w2);
+	Ry(t0, t1, k[15], w3);
+	Rz(t1);
+
+	/* update state */
+	s0  += d0;
+	s1  += d1;
+
+		/* transform 2 */
+	/* skips input message sigma processing and updates state against constants */
+
+	/* work on copy of state */
+	d0 = s0;
+	d1 = s1;
+
+	/* perform rounds of four */
+	Rz(k[16]);
+	Rz(k[17]);
+	Rz(k[18]);
+	Rz(k[19]);
+	Rz(k[20]);
+	Rz(k[21]);
+	Rz(k[22]);
+	Rz(k[23]);
+	Rz(k[24]);
+	Rz(k[25]);
+	Rz(k[26]);
+	Rz(k[27]);
+	Rz(k[28]);
+	Rz(k[29]);
+	Rz(k[30]);
+	Rz(k[31]);
+
+	/* update state combine pre and post states storeing in message digest upper half*/
+	w0 = d0 + s0;
+	w1 = d1 + s1;
+
+
+// copy results of transform 2 into message input upper half for C code transform 3
+    uint32_t ww0, ww1, ww2, ww3, w4, w5, w6, w7, w8, w9, w10, w11, w12, w13, w14, w15;
+ww0 = w0[0];
+ww1 = w0[1];
+ww2 = w0[2];
+ww3 = w0[3];
+w4 = w1[0];
+w5 = w1[1];
+w6 = w1[2];
+w7 = w1[3];
+
+// everything works up until transform 3
+
+		/* transform 3 */
+	/* work on copy of initial state */
+	d0 = sha256_h_neon.val[0];
+	d1 = sha256_h_neon.val[1];
+
+	/* initialize t0 for first round */
+	t0 = w0 + k[32];
+
+	/* perform rounds of four */
+	// rounds 1 to 8 Rya & Ryb update state against constants and upper half of message digest.
+	// ryb updates state against constant and prepares constant for the next 4 rounds.
+
+	// state values immediately after round 8 match on armv8 and C code.
+	Rya(t0, t1, k[33], w1);
+	Ryb(t1, t0, k[34]);
+	// Intel _mm_set_epi64x intrinsic port taken from an Android library
+	w2 = _mm_set_epi64x(0x0ull, 0x80000000ull);
+	Ryb(t0, t1, k[35]);
+	w3 = _mm_set_epi64x(0x10000000000ull, 0x0ull);
+	Ryb(t1, t0, k[36]);
+	Rx(t0, t1, k[37], w0, w1, w2, w3);
+	Rx(t1, t0, k[38], w1, w2, w3, w0);
+	Rx(t0, t1, k[39], w2, w3, w0, w1);
+	Rx(t1, t0, k[40], w3, w0, w1, w2);
+	Rx(t0, t1, k[41], w0, w1, w2, w3);
+	Rx(t1, t0, k[42], w1, w2, w3, w0);
+	Rx(t0, t1, k[43], w2, w3, w0, w1);
+	Rx(t1, t0, k[44], w3, w0, w1, w2);
+	Ry(t0, t1, k[45], w1);
+	Ry(t1, t0, k[46], w2);
+	Ry(t0, t1, k[47], w3);
+	Rz(t1);
+
+	/* initialize t0 for first round */
+//	t0 = w0 + k[32];
+
+	/* perform rounds of four */
+/*	Ry(t0, t1, k[33], w0);
+	Ty(t1, w1);
+	w2 = vreinterpretq_u32_u64(vcombine_u64(vcreate_u64(0x80000000), vcreate_u64(0x0)));
+	Rz(k[35]);
+	w3 = vreinterpretq_u32_u64(vcombine_u64(vcreate_u64(0x0), vcreate_u64(0x10000000000)));
+	Tx(t0, k[36], w0);
+	Rx(t0, t1, k[36], w0, w1, w2, w3);
+	Rx(t1, t0, k[37], w1, w2, w3, w0);
+	Rx(t0, t1, k[38], w2, w3, w0, w1);
+	Rx(t1, t0, k[39], w3, w0, w1, w2);
+	Rx(t0, t1, k[40], w0, w1, w2, w3);
+	Rx(t1, t0, k[41], w1, w2, w3, w0);
+	Rx(t0, t1, k[42], w2, w3, w0, w1);
+	Rx(t1, t0, k[43], w3, w0, w1, w2);
+	Ry(t0, t1, k[44], w1);
+	Ry(t1, t0, k[45], w2);
+	Ry(t0, t1, k[46], w3);
+	Rz(t1);*/
+
+	/* initialize t0 for first round */
+	//t0 = w0 + k[32];
+
+	/* perform rounds of four */
+/*	Ty(k[32], w0);
+	Ty(k[33], w1);
+	w2 = vreinterpretq_u32_u64(vcombine_u64(vcreate_u64(0x80000000ull), vcreate_u64(0x0ull)));
+	Rz(k[34]);
+	w3 = vreinterpretq_u32_u64(vcombine_u64(vcreate_u64(0x0ull), vcreate_u64(0x10000000000ull)));
+	Rz(k[35]);
+	Tx(k[36], w0, w1, w2, w3);
+	Tx(k[37], w1, w2, w3, w0);
+	Tx(k[38], w2, w3, w0, w1);
+	Tx(k[39], w3, w0, w1, w2);
+	Tx(k[40], w0, w1, w2, w3);
+	Tx(k[41], w1, w2, w3, w0);
+	Tx(k[42], w2, w3, w0, w1);
+	Tx(k[43], w3, w0, w1, w2);
+	Ty(k[44], w1);
+	Ty(k[45], w2);
+	Ty(k[46], w3);
+	Rz(k[47]);*/
+
+// attempted to direct port shani::transform2_way transform 3 (macros defined above)
+
+ /*   QuadRound1(d0, d1, w0, 0xe9b5dba5B5c0fbcfull, 0x71374491428a2f98ull);
+    QuadRound1(d0, d1, w1, 0xab1c5ed5923f82a4ull, 0x59f111f13956c25bull); 
+	//    _mm_set_epi64x port for arm defined above
+    w2 = _mm_set_epi64x(0x0ull, 0x80000000ull);
+    QuadRound2(d0, d1, 0x550c7dc3243185beull, 0x12835b015807aa98ull);
+    //ShiftMessageA(w1, w2);
+    w3 = _mm_set_epi64x(0x10000000000ull, 0x0ull);
+    QuadRound2(d0, d1, 0xc19bf2749bdc06a7ull, 0x80deb1fe72be5d74ull);
+    //ShiftMessageB(w2, w3, w0);
+    QuadRound(d0, d1, w0,w1,w2,w3, 0x240ca1cc0fc19dc6ull, 0xefbe4786e49b69c1ull);
+    //ShiftMessageB(w3, w0, w1);
+    QuadRound(d0, d1, w1,w2,w3,w0, 0x76f988da5cb0a9dcull, 0x4a7484aa2de92c6full);
+   // ShiftMessageB(w0, w1, w2);
+    QuadRound(d0, d1, w2,w3,w0,w1, 0xbf597fc7b00327c8ull, 0xa831c66d983e5152ull);
+    //ShiftMessageB(w1, w2, w3);
+    QuadRound(d0, d1, w3,w0,w1,w2, 0x1429296706ca6351ull, 0xd5a79147c6e00bf3ull); 
+    //ShiftMessageB(w2, w3, w0);
+    QuadRound(d0, d1, w0,w1,w2,w3, 0x53380d134d2c6dfcull, 0x2e1b213827b70a85ull);
+    //ShiftMessageB(w3, w0, w1);
+    QuadRound(d0, d1, w1,w2,w3,w0, 0x92722c8581c2c92eull, 0x766a0abb650a7354ull);
+    //ShiftMessageB(w0, w1, w2);
+    QuadRound(d0, d1, w2,w3,w0,w1, 0xc76c51a3c24b8b70ull, 0xa81a664ba2bfe8A1ull);
+   // ShiftMessageB(w1, w2, w3);
+    QuadRound(d0, d1, w3,w0,w1,w2, 0x106aa070f40e3585ull, 0xd6990624d192e819ull);
+    //ShiftMessageB(w2, w3, w0);
+    QuadRound(d0, d1, w0,w1,w2,w3, 0x34b0bcb52748774cull, 0x1e376c0819a4c116ull);
+    //ShiftMessageB(w3, w0, w1);
+    QuadRound(d0, d1, w1,w2,w3,w0, 0x682e6ff35b9cca4full, 0x4ed8aa4a391c0cb3ull);
+    //ShiftMessageC(w0, w1, w2);
+    QuadRound(d0, d1, w2,w3,w0,w1, 0x8cc7020884c87814ull, 0x78a5636f748f82eeull);
+   // ShiftMessageC(w1, w2, w3);
+    QuadRound(d0, d1, w3,w0,w1,w2, 0xc67178f2bef9a3f7ull, 0xa4506ceb90befffaull);*/
+ 
+	/* update work on state with initial state*/
+	d0 += sha256_h_neon.val[0];
+	d1 += sha256_h_neon.val[1];
+
+	/* neon pointer to output suitable for neon bswap32 */
+	alignas(16) uint8x16_t *dst = reinterpret_cast<uint8x16_t*>(out);
+
+	// Save results
+	*dst++ = vrev32q_u8(vreinterpretq_u8_u32(d0));
+	*dst++ = vrev32q_u8(vreinterpretq_u8_u32(d1));
+
+// original C implementation takes over...works but not optimal
     uint32_t a = 0x6a09e667ul;
     uint32_t b = 0xbb67ae85ul;
     uint32_t c = 0x3c6ef372ul;
@@ -382,233 +813,79 @@ void TransformD64(unsigned char* out, const unsigned char* in)
     uint32_t g = 0x1f83d9abul;
     uint32_t h = 0x5be0cd19ul;
 
-    uint32_t w0, w1, w2, w3, w4, w5, w6, w7, w8, w9, w10, w11, w12, w13, w14, w15;
+    Round(a, b, c, d, e, f, g, h, 0x428a2f98ul + ww0);
+    Round(h, a, b, c, d, e, f, g, 0x71374491ul + ww1);
+    Round(g, h, a, b, c, d, e, f, 0xb5c0fbcful + ww2);
+    Round(f, g, h, a, b, c, d, e, 0xe9b5dba5ul + ww3);
 
-    Round(a, b, c, d, e, f, g, h, 0x428a2f98ul + (w0 = ReadBE32(in + 0)));
-    Round(h, a, b, c, d, e, f, g, 0x71374491ul + (w1 = ReadBE32(in + 4)));
-    Round(g, h, a, b, c, d, e, f, 0xb5c0fbcful + (w2 = ReadBE32(in + 8)));
-    Round(f, g, h, a, b, c, d, e, 0xe9b5dba5ul + (w3 = ReadBE32(in + 12)));
-    Round(e, f, g, h, a, b, c, d, 0x3956c25bul + (w4 = ReadBE32(in + 16)));
-    Round(d, e, f, g, h, a, b, c, 0x59f111f1ul + (w5 = ReadBE32(in + 20)));
-    Round(c, d, e, f, g, h, a, b, 0x923f82a4ul + (w6 = ReadBE32(in + 24)));
-    Round(b, c, d, e, f, g, h, a, 0xab1c5ed5ul + (w7 = ReadBE32(in + 28)));
-    Round(a, b, c, d, e, f, g, h, 0xd807aa98ul + (w8 = ReadBE32(in + 32)));
-    Round(h, a, b, c, d, e, f, g, 0x12835b01ul + (w9 = ReadBE32(in + 36)));
-    Round(g, h, a, b, c, d, e, f, 0x243185beul + (w10 = ReadBE32(in + 40)));
-    Round(f, g, h, a, b, c, d, e, 0x550c7dc3ul + (w11 = ReadBE32(in + 44)));
-    Round(e, f, g, h, a, b, c, d, 0x72be5d74ul + (w12 = ReadBE32(in + 48)));
-    Round(d, e, f, g, h, a, b, c, 0x80deb1feul + (w13 = ReadBE32(in + 52)));
-    Round(c, d, e, f, g, h, a, b, 0x9bdc06a7ul + (w14 = ReadBE32(in + 56)));
-    Round(b, c, d, e, f, g, h, a, 0xc19bf174ul + (w15 = ReadBE32(in + 60)));
-    Round(a, b, c, d, e, f, g, h, 0xe49b69c1ul + (w0 += sigma1(w14) + w9 + sigma0(w1)));
-    Round(h, a, b, c, d, e, f, g, 0xefbe4786ul + (w1 += sigma1(w15) + w10 + sigma0(w2)));
-    Round(g, h, a, b, c, d, e, f, 0x0fc19dc6ul + (w2 += sigma1(w0) + w11 + sigma0(w3)));
-    Round(f, g, h, a, b, c, d, e, 0x240ca1ccul + (w3 += sigma1(w1) + w12 + sigma0(w4)));
-    Round(e, f, g, h, a, b, c, d, 0x2de92c6ful + (w4 += sigma1(w2) + w13 + sigma0(w5)));
-    Round(d, e, f, g, h, a, b, c, 0x4a7484aaul + (w5 += sigma1(w3) + w14 + sigma0(w6)));
-    Round(c, d, e, f, g, h, a, b, 0x5cb0a9dcul + (w6 += sigma1(w4) + w15 + sigma0(w7)));
-    Round(b, c, d, e, f, g, h, a, 0x76f988daul + (w7 += sigma1(w5) + w0 + sigma0(w8)));
-    Round(a, b, c, d, e, f, g, h, 0x983e5152ul + (w8 += sigma1(w6) + w1 + sigma0(w9)));
-    Round(h, a, b, c, d, e, f, g, 0xa831c66dul + (w9 += sigma1(w7) + w2 + sigma0(w10)));
-    Round(g, h, a, b, c, d, e, f, 0xb00327c8ul + (w10 += sigma1(w8) + w3 + sigma0(w11)));
-    Round(f, g, h, a, b, c, d, e, 0xbf597fc7ul + (w11 += sigma1(w9) + w4 + sigma0(w12)));
-    Round(e, f, g, h, a, b, c, d, 0xc6e00bf3ul + (w12 += sigma1(w10) + w5 + sigma0(w13)));
-    Round(d, e, f, g, h, a, b, c, 0xd5a79147ul + (w13 += sigma1(w11) + w6 + sigma0(w14)));
-    Round(c, d, e, f, g, h, a, b, 0x06ca6351ul + (w14 += sigma1(w12) + w7 + sigma0(w15)));
-    Round(b, c, d, e, f, g, h, a, 0x14292967ul + (w15 += sigma1(w13) + w8 + sigma0(w0)));
-    Round(a, b, c, d, e, f, g, h, 0x27b70a85ul + (w0 += sigma1(w14) + w9 + sigma0(w1)));
-    Round(h, a, b, c, d, e, f, g, 0x2e1b2138ul + (w1 += sigma1(w15) + w10 + sigma0(w2)));
-    Round(g, h, a, b, c, d, e, f, 0x4d2c6dfcul + (w2 += sigma1(w0) + w11 + sigma0(w3)));
-    Round(f, g, h, a, b, c, d, e, 0x53380d13ul + (w3 += sigma1(w1) + w12 + sigma0(w4)));
-    Round(e, f, g, h, a, b, c, d, 0x650a7354ul + (w4 += sigma1(w2) + w13 + sigma0(w5)));
-    Round(d, e, f, g, h, a, b, c, 0x766a0abbul + (w5 += sigma1(w3) + w14 + sigma0(w6)));
-    Round(c, d, e, f, g, h, a, b, 0x81c2c92eul + (w6 += sigma1(w4) + w15 + sigma0(w7)));
-    Round(b, c, d, e, f, g, h, a, 0x92722c85ul + (w7 += sigma1(w5) + w0 + sigma0(w8)));
-    Round(a, b, c, d, e, f, g, h, 0xa2bfe8a1ul + (w8 += sigma1(w6) + w1 + sigma0(w9)));
-    Round(h, a, b, c, d, e, f, g, 0xa81a664bul + (w9 += sigma1(w7) + w2 + sigma0(w10)));
-    Round(g, h, a, b, c, d, e, f, 0xc24b8b70ul + (w10 += sigma1(w8) + w3 + sigma0(w11)));
-    Round(f, g, h, a, b, c, d, e, 0xc76c51a3ul + (w11 += sigma1(w9) + w4 + sigma0(w12)));
-    Round(e, f, g, h, a, b, c, d, 0xd192e819ul + (w12 += sigma1(w10) + w5 + sigma0(w13)));
-    Round(d, e, f, g, h, a, b, c, 0xd6990624ul + (w13 += sigma1(w11) + w6 + sigma0(w14)));
-    Round(c, d, e, f, g, h, a, b, 0xf40e3585ul + (w14 += sigma1(w12) + w7 + sigma0(w15)));
-    Round(b, c, d, e, f, g, h, a, 0x106aa070ul + (w15 += sigma1(w13) + w8 + sigma0(w0)));
-    Round(a, b, c, d, e, f, g, h, 0x19a4c116ul + (w0 += sigma1(w14) + w9 + sigma0(w1)));
-    Round(h, a, b, c, d, e, f, g, 0x1e376c08ul + (w1 += sigma1(w15) + w10 + sigma0(w2)));
-    Round(g, h, a, b, c, d, e, f, 0x2748774cul + (w2 += sigma1(w0) + w11 + sigma0(w3)));
-    Round(f, g, h, a, b, c, d, e, 0x34b0bcb5ul + (w3 += sigma1(w1) + w12 + sigma0(w4)));
-    Round(e, f, g, h, a, b, c, d, 0x391c0cb3ul + (w4 += sigma1(w2) + w13 + sigma0(w5)));
-    Round(d, e, f, g, h, a, b, c, 0x4ed8aa4aul + (w5 += sigma1(w3) + w14 + sigma0(w6)));
-    Round(c, d, e, f, g, h, a, b, 0x5b9cca4ful + (w6 += sigma1(w4) + w15 + sigma0(w7)));
-    Round(b, c, d, e, f, g, h, a, 0x682e6ff3ul + (w7 += sigma1(w5) + w0 + sigma0(w8)));
-    Round(a, b, c, d, e, f, g, h, 0x748f82eeul + (w8 += sigma1(w6) + w1 + sigma0(w9)));
-    Round(h, a, b, c, d, e, f, g, 0x78a5636ful + (w9 += sigma1(w7) + w2 + sigma0(w10)));
-    Round(g, h, a, b, c, d, e, f, 0x84c87814ul + (w10 += sigma1(w8) + w3 + sigma0(w11)));
-    Round(f, g, h, a, b, c, d, e, 0x8cc70208ul + (w11 += sigma1(w9) + w4 + sigma0(w12)));
-    Round(e, f, g, h, a, b, c, d, 0x90befffaul + (w12 += sigma1(w10) + w5 + sigma0(w13)));
-    Round(d, e, f, g, h, a, b, c, 0xa4506cebul + (w13 += sigma1(w11) + w6 + sigma0(w14)));
-    Round(c, d, e, f, g, h, a, b, 0xbef9a3f7ul + (w14 + sigma1(w12) + w7 + sigma0(w15)));
-    Round(b, c, d, e, f, g, h, a, 0xc67178f2ul + (w15 + sigma1(w13) + w8 + sigma0(w0)));
-
-    a += 0x6a09e667ul;
-    b += 0xbb67ae85ul;
-    c += 0x3c6ef372ul;
-    d += 0xa54ff53aul;
-    e += 0x510e527ful;
-    f += 0x9b05688cul;
-    g += 0x1f83d9abul;
-    h += 0x5be0cd19ul;
-
-    uint32_t t0 = a, t1 = b, t2 = c, t3 = d, t4 = e, t5 = f, t6 = g, t7 = h;
-
-    // Transform 2
-    Round(a, b, c, d, e, f, g, h, 0xc28a2f98ul);
-    Round(h, a, b, c, d, e, f, g, 0x71374491ul);
-    Round(g, h, a, b, c, d, e, f, 0xb5c0fbcful);
-    Round(f, g, h, a, b, c, d, e, 0xe9b5dba5ul);
-    Round(e, f, g, h, a, b, c, d, 0x3956c25bul);
-    Round(d, e, f, g, h, a, b, c, 0x59f111f1ul);
-    Round(c, d, e, f, g, h, a, b, 0x923f82a4ul);
-    Round(b, c, d, e, f, g, h, a, 0xab1c5ed5ul);
-    Round(a, b, c, d, e, f, g, h, 0xd807aa98ul);
-    Round(h, a, b, c, d, e, f, g, 0x12835b01ul);
-    Round(g, h, a, b, c, d, e, f, 0x243185beul);
-    Round(f, g, h, a, b, c, d, e, 0x550c7dc3ul);
-    Round(e, f, g, h, a, b, c, d, 0x72be5d74ul);
-    Round(d, e, f, g, h, a, b, c, 0x80deb1feul);
-    Round(c, d, e, f, g, h, a, b, 0x9bdc06a7ul);
-    Round(b, c, d, e, f, g, h, a, 0xc19bf374ul);
-    Round(a, b, c, d, e, f, g, h, 0x649b69c1ul);
-    Round(h, a, b, c, d, e, f, g, 0xf0fe4786ul);
-    Round(g, h, a, b, c, d, e, f, 0x0fe1edc6ul);
-    Round(f, g, h, a, b, c, d, e, 0x240cf254ul);
-    Round(e, f, g, h, a, b, c, d, 0x4fe9346ful);
-    Round(d, e, f, g, h, a, b, c, 0x6cc984beul);
-    Round(c, d, e, f, g, h, a, b, 0x61b9411eul);
-    Round(b, c, d, e, f, g, h, a, 0x16f988faul);
-    Round(a, b, c, d, e, f, g, h, 0xf2c65152ul);
-    Round(h, a, b, c, d, e, f, g, 0xa88e5a6dul);
-    Round(g, h, a, b, c, d, e, f, 0xb019fc65ul);
-    Round(f, g, h, a, b, c, d, e, 0xb9d99ec7ul);
-    Round(e, f, g, h, a, b, c, d, 0x9a1231c3ul);
-    Round(d, e, f, g, h, a, b, c, 0xe70eeaa0ul);
-    Round(c, d, e, f, g, h, a, b, 0xfdb1232bul);
-    Round(b, c, d, e, f, g, h, a, 0xc7353eb0ul);
-    Round(a, b, c, d, e, f, g, h, 0x3069bad5ul);
-    Round(h, a, b, c, d, e, f, g, 0xcb976d5ful);
-    Round(g, h, a, b, c, d, e, f, 0x5a0f118ful);
-    Round(f, g, h, a, b, c, d, e, 0xdc1eeefdul);
-    Round(e, f, g, h, a, b, c, d, 0x0a35b689ul);
-    Round(d, e, f, g, h, a, b, c, 0xde0b7a04ul);
-    Round(c, d, e, f, g, h, a, b, 0x58f4ca9dul);
-    Round(b, c, d, e, f, g, h, a, 0xe15d5b16ul);
-    Round(a, b, c, d, e, f, g, h, 0x007f3e86ul);
-    Round(h, a, b, c, d, e, f, g, 0x37088980ul);
-    Round(g, h, a, b, c, d, e, f, 0xa507ea32ul);
-    Round(f, g, h, a, b, c, d, e, 0x6fab9537ul);
-    Round(e, f, g, h, a, b, c, d, 0x17406110ul);
-    Round(d, e, f, g, h, a, b, c, 0x0d8cd6f1ul);
-    Round(c, d, e, f, g, h, a, b, 0xcdaa3b6dul);
-    Round(b, c, d, e, f, g, h, a, 0xc0bbbe37ul);
-    Round(a, b, c, d, e, f, g, h, 0x83613bdaul);
-    Round(h, a, b, c, d, e, f, g, 0xdb48a363ul);
-    Round(g, h, a, b, c, d, e, f, 0x0b02e931ul);
-    Round(f, g, h, a, b, c, d, e, 0x6fd15ca7ul);
-    Round(e, f, g, h, a, b, c, d, 0x521afacaul);
-    Round(d, e, f, g, h, a, b, c, 0x31338431ul);
-    Round(c, d, e, f, g, h, a, b, 0x6ed41a95ul);
-    Round(b, c, d, e, f, g, h, a, 0x6d437890ul);
-    Round(a, b, c, d, e, f, g, h, 0xc39c91f2ul);
-    Round(h, a, b, c, d, e, f, g, 0x9eccabbdul);
-    Round(g, h, a, b, c, d, e, f, 0xb5c9a0e6ul);
-    Round(f, g, h, a, b, c, d, e, 0x532fb63cul);
-    Round(e, f, g, h, a, b, c, d, 0xd2c741c6ul);
-    Round(d, e, f, g, h, a, b, c, 0x07237ea3ul);
-    Round(c, d, e, f, g, h, a, b, 0xa4954b68ul);
-    Round(b, c, d, e, f, g, h, a, 0x4c191d76ul);
-
-    w0 = t0 + a;
-    w1 = t1 + b;
-    w2 = t2 + c;
-    w3 = t3 + d;
-    w4 = t4 + e;
-    w5 = t5 + f;
-    w6 = t6 + g;
-    w7 = t7 + h;
-
-    // Transform 3
-    a = 0x6a09e667ul;
-    b = 0xbb67ae85ul;
-    c = 0x3c6ef372ul;
-    d = 0xa54ff53aul;
-    e = 0x510e527ful;
-    f = 0x9b05688cul;
-    g = 0x1f83d9abul;
-    h = 0x5be0cd19ul;
-
-    Round(a, b, c, d, e, f, g, h, 0x428a2f98ul + w0);
-    Round(h, a, b, c, d, e, f, g, 0x71374491ul + w1);
-    Round(g, h, a, b, c, d, e, f, 0xb5c0fbcful + w2);
-    Round(f, g, h, a, b, c, d, e, 0xe9b5dba5ul + w3);
     Round(e, f, g, h, a, b, c, d, 0x3956c25bul + w4);
     Round(d, e, f, g, h, a, b, c, 0x59f111f1ul + w5);
     Round(c, d, e, f, g, h, a, b, 0x923f82a4ul + w6);
     Round(b, c, d, e, f, g, h, a, 0xab1c5ed5ul + w7);
+
     Round(a, b, c, d, e, f, g, h, 0x5807aa98ul);
     Round(h, a, b, c, d, e, f, g, 0x12835b01ul);
     Round(g, h, a, b, c, d, e, f, 0x243185beul);
     Round(f, g, h, a, b, c, d, e, 0x550c7dc3ul);
+
     Round(e, f, g, h, a, b, c, d, 0x72be5d74ul);
     Round(d, e, f, g, h, a, b, c, 0x80deb1feul);
     Round(c, d, e, f, g, h, a, b, 0x9bdc06a7ul);
     Round(b, c, d, e, f, g, h, a, 0xc19bf274ul);
-    Round(a, b, c, d, e, f, g, h, 0xe49b69c1ul + (w0 += sigma0(w1)));
-    Round(h, a, b, c, d, e, f, g, 0xefbe4786ul + (w1 += 0xa00000ul + sigma0(w2)));
-    Round(g, h, a, b, c, d, e, f, 0x0fc19dc6ul + (w2 += sigma1(w0) + sigma0(w3)));
-    Round(f, g, h, a, b, c, d, e, 0x240ca1ccul + (w3 += sigma1(w1) + sigma0(w4)));
-    Round(e, f, g, h, a, b, c, d, 0x2de92c6ful + (w4 += sigma1(w2) + sigma0(w5)));
-    Round(d, e, f, g, h, a, b, c, 0x4a7484aaul + (w5 += sigma1(w3) + sigma0(w6)));
+
+    Round(a, b, c, d, e, f, g, h, 0xe49b69c1ul + (ww0 += sigma0(ww1)));
+    Round(h, a, b, c, d, e, f, g, 0xefbe4786ul + (ww1 += 0xa00000ul + sigma0(ww2)));
+    Round(g, h, a, b, c, d, e, f, 0x0fc19dc6ul + (ww2 += sigma1(ww0) + sigma0(ww3)));
+    Round(f, g, h, a, b, c, d, e, 0x240ca1ccul + (ww3 += sigma1(ww1) + sigma0(w4)));
+
+
+    Round(e, f, g, h, a, b, c, d, 0x2de92c6ful + (w4 += sigma1(ww2) + sigma0(w5)));
+    Round(d, e, f, g, h, a, b, c, 0x4a7484aaul + (w5 += sigma1(ww3) + sigma0(w6)));
     Round(c, d, e, f, g, h, a, b, 0x5cb0a9dcul + (w6 += sigma1(w4) + 0x100ul + sigma0(w7)));
-    Round(b, c, d, e, f, g, h, a, 0x76f988daul + (w7 += sigma1(w5) + w0 + 0x11002000ul));
-    Round(a, b, c, d, e, f, g, h, 0x983e5152ul + (w8 = 0x80000000ul + sigma1(w6) + w1));
-    Round(h, a, b, c, d, e, f, g, 0xa831c66dul + (w9 = sigma1(w7) + w2));
-    Round(g, h, a, b, c, d, e, f, 0xb00327c8ul + (w10 = sigma1(w8) + w3));
+    Round(b, c, d, e, f, g, h, a, 0x76f988daul + (w7 += sigma1(w5) + ww0 + 0x11002000ul));
+
+    Round(a, b, c, d, e, f, g, h, 0x983e5152ul + (w8 = 0x80000000ul + sigma1(w6) + ww1));
+    Round(h, a, b, c, d, e, f, g, 0xa831c66dul + (w9 = sigma1(w7) + ww2));
+    Round(g, h, a, b, c, d, e, f, 0xb00327c8ul + (w10 = sigma1(w8) + ww3));
     Round(f, g, h, a, b, c, d, e, 0xbf597fc7ul + (w11 = sigma1(w9) + w4));
+
     Round(e, f, g, h, a, b, c, d, 0xc6e00bf3ul + (w12 = sigma1(w10) + w5));
     Round(d, e, f, g, h, a, b, c, 0xd5a79147ul + (w13 = sigma1(w11) + w6));
     Round(c, d, e, f, g, h, a, b, 0x06ca6351ul + (w14 = sigma1(w12) + w7 + 0x400022ul));
-    Round(b, c, d, e, f, g, h, a, 0x14292967ul + (w15 = 0x100ul + sigma1(w13) + w8 + sigma0(w0)));
-    Round(a, b, c, d, e, f, g, h, 0x27b70a85ul + (w0 += sigma1(w14) + w9 + sigma0(w1)));
-    Round(h, a, b, c, d, e, f, g, 0x2e1b2138ul + (w1 += sigma1(w15) + w10 + sigma0(w2)));
-    Round(g, h, a, b, c, d, e, f, 0x4d2c6dfcul + (w2 += sigma1(w0) + w11 + sigma0(w3)));
-    Round(f, g, h, a, b, c, d, e, 0x53380d13ul + (w3 += sigma1(w1) + w12 + sigma0(w4)));
-    Round(e, f, g, h, a, b, c, d, 0x650a7354ul + (w4 += sigma1(w2) + w13 + sigma0(w5)));
-    Round(d, e, f, g, h, a, b, c, 0x766a0abbul + (w5 += sigma1(w3) + w14 + sigma0(w6)));
+    Round(b, c, d, e, f, g, h, a, 0x14292967ul + (w15 = 0x100ul + sigma1(w13) + w8 + sigma0(ww0)));
+
+    Round(a, b, c, d, e, f, g, h, 0x27b70a85ul + (ww0 += sigma1(w14) + w9 + sigma0(ww1)));
+    Round(h, a, b, c, d, e, f, g, 0x2e1b2138ul + (ww1 += sigma1(w15) + w10 + sigma0(ww2)));
+    Round(g, h, a, b, c, d, e, f, 0x4d2c6dfcul + (ww2 += sigma1(ww0) + w11 + sigma0(ww3)));
+    Round(f, g, h, a, b, c, d, e, 0x53380d13ul + (ww3 += sigma1(ww1) + w12 + sigma0(w4)));
+    Round(e, f, g, h, a, b, c, d, 0x650a7354ul + (w4 += sigma1(ww2) + w13 + sigma0(w5)));
+    Round(d, e, f, g, h, a, b, c, 0x766a0abbul + (w5 += sigma1(ww3) + w14 + sigma0(w6)));
     Round(c, d, e, f, g, h, a, b, 0x81c2c92eul + (w6 += sigma1(w4) + w15 + sigma0(w7)));
-    Round(b, c, d, e, f, g, h, a, 0x92722c85ul + (w7 += sigma1(w5) + w0 + sigma0(w8)));
-    Round(a, b, c, d, e, f, g, h, 0xa2bfe8a1ul + (w8 += sigma1(w6) + w1 + sigma0(w9)));
-    Round(h, a, b, c, d, e, f, g, 0xa81a664bul + (w9 += sigma1(w7) + w2 + sigma0(w10)));
-    Round(g, h, a, b, c, d, e, f, 0xc24b8b70ul + (w10 += sigma1(w8) + w3 + sigma0(w11)));
+    Round(b, c, d, e, f, g, h, a, 0x92722c85ul + (w7 += sigma1(w5) + ww0 + sigma0(w8)));
+    Round(a, b, c, d, e, f, g, h, 0xa2bfe8a1ul + (w8 += sigma1(w6) + ww1 + sigma0(w9)));
+    Round(h, a, b, c, d, e, f, g, 0xa81a664bul + (w9 += sigma1(w7) + ww2 + sigma0(w10)));
+    Round(g, h, a, b, c, d, e, f, 0xc24b8b70ul + (w10 += sigma1(w8) + ww3 + sigma0(w11)));
     Round(f, g, h, a, b, c, d, e, 0xc76c51a3ul + (w11 += sigma1(w9) + w4 + sigma0(w12)));
     Round(e, f, g, h, a, b, c, d, 0xd192e819ul + (w12 += sigma1(w10) + w5 + sigma0(w13)));
     Round(d, e, f, g, h, a, b, c, 0xd6990624ul + (w13 += sigma1(w11) + w6 + sigma0(w14)));
     Round(c, d, e, f, g, h, a, b, 0xf40e3585ul + (w14 += sigma1(w12) + w7 + sigma0(w15)));
-    Round(b, c, d, e, f, g, h, a, 0x106aa070ul + (w15 += sigma1(w13) + w8 + sigma0(w0)));
-    Round(a, b, c, d, e, f, g, h, 0x19a4c116ul + (w0 += sigma1(w14) + w9 + sigma0(w1)));
-    Round(h, a, b, c, d, e, f, g, 0x1e376c08ul + (w1 += sigma1(w15) + w10 + sigma0(w2)));
-    Round(g, h, a, b, c, d, e, f, 0x2748774cul + (w2 += sigma1(w0) + w11 + sigma0(w3)));
-    Round(f, g, h, a, b, c, d, e, 0x34b0bcb5ul + (w3 += sigma1(w1) + w12 + sigma0(w4)));
-    Round(e, f, g, h, a, b, c, d, 0x391c0cb3ul + (w4 += sigma1(w2) + w13 + sigma0(w5)));
-    Round(d, e, f, g, h, a, b, c, 0x4ed8aa4aul + (w5 += sigma1(w3) + w14 + sigma0(w6)));
+    Round(b, c, d, e, f, g, h, a, 0x106aa070ul + (w15 += sigma1(w13) + w8 + sigma0(ww0)));
+    Round(a, b, c, d, e, f, g, h, 0x19a4c116ul + (ww0 += sigma1(w14) + w9 + sigma0(ww1)));
+    Round(h, a, b, c, d, e, f, g, 0x1e376c08ul + (ww1 += sigma1(w15) + w10 + sigma0(ww2)));
+    Round(g, h, a, b, c, d, e, f, 0x2748774cul + (ww2 += sigma1(ww0) + w11 + sigma0(ww3)));
+    Round(f, g, h, a, b, c, d, e, 0x34b0bcb5ul + (ww3 += sigma1(ww1) + w12 + sigma0(w4)));
+    Round(e, f, g, h, a, b, c, d, 0x391c0cb3ul + (w4 += sigma1(ww2) + w13 + sigma0(w5)));
+    Round(d, e, f, g, h, a, b, c, 0x4ed8aa4aul + (w5 += sigma1(ww3) + w14 + sigma0(w6)));
     Round(c, d, e, f, g, h, a, b, 0x5b9cca4ful + (w6 += sigma1(w4) + w15 + sigma0(w7)));
-    Round(b, c, d, e, f, g, h, a, 0x682e6ff3ul + (w7 += sigma1(w5) + w0 + sigma0(w8)));
-    Round(a, b, c, d, e, f, g, h, 0x748f82eeul + (w8 += sigma1(w6) + w1 + sigma0(w9)));
-    Round(h, a, b, c, d, e, f, g, 0x78a5636ful + (w9 += sigma1(w7) + w2 + sigma0(w10)));
-    Round(g, h, a, b, c, d, e, f, 0x84c87814ul + (w10 += sigma1(w8) + w3 + sigma0(w11)));
+    Round(b, c, d, e, f, g, h, a, 0x682e6ff3ul + (w7 += sigma1(w5) + ww0 + sigma0(w8)));
+    Round(a, b, c, d, e, f, g, h, 0x748f82eeul + (w8 += sigma1(w6) + ww1 + sigma0(w9)));
+    Round(h, a, b, c, d, e, f, g, 0x78a5636ful + (w9 += sigma1(w7) + ww2 + sigma0(w10)));
+    Round(g, h, a, b, c, d, e, f, 0x84c87814ul + (w10 += sigma1(w8) + ww3 + sigma0(w11)));
     Round(f, g, h, a, b, c, d, e, 0x8cc70208ul + (w11 += sigma1(w9) + w4 + sigma0(w12)));
     Round(e, f, g, h, a, b, c, d, 0x90befffaul + (w12 += sigma1(w10) + w5 + sigma0(w13)));
     Round(d, e, f, g, h, a, b, c, 0xa4506cebul + (w13 += sigma1(w11) + w6 + sigma0(w14)));
     Round(c, d, e, f, g, h, a, b, 0xbef9a3f7ul + (w14 + sigma1(w12) + w7 + sigma0(w15)));
-    Round(b, c, d, e, f, g, h, a, 0xc67178f2ul + (w15 + sigma1(w13) + w8 + sigma0(w0)));
+    Round(b, c, d, e, f, g, h, a, 0xc67178f2ul + (w15 + sigma1(w13) + w8 + sigma0(ww0)));
 
     // Output
     WriteBE32(out + 0, a + 0x6a09e667ul);
@@ -619,8 +896,12 @@ void TransformD64(unsigned char* out, const unsigned char* in)
     WriteBE32(out + 20, f + 0x9b05688cul);
     WriteBE32(out + 24, g + 0x1f83d9abul);
     WriteBE32(out + 28, h + 0x5be0cd19ul);
+
+if((uint32_t)(a + 0x6a09e667ul) != d0[0]) {
+printf("armv8 sha256d64 transform 3 failed\n");
 }
 
+}
 } // namespace sha256
 
 typedef void (*TransformType)(uint32_t*, const unsigned char*, size_t);
@@ -672,6 +953,7 @@ TransformD64Type TransformD64_4way = nullptr;
 TransformD64Type TransformD64_8way = nullptr;
 
 bool SelfTest() {
+
     // Input state (equal to the initial SHA256 state)
     static const uint32_t init[8] = {
         0x6a09e667ul, 0xbb67ae85ul, 0x3c6ef372ul, 0xa54ff53aul, 0x510e527ful, 0x9b05688cul, 0x1f83d9abul, 0x5be0cd19ul
@@ -886,7 +1168,7 @@ CSHA256& CSHA256::Write(const unsigned char* data, size_t len)
 
 #if defined(__aarch32__) || defined(__aarch64__)
 // Neon version of bswap32 for aarch64. Customised to process 32bytes.
-void inline WriteBE32Neon32bytes(unsigned char* ptr, uint32_t* x)
+inline void WriteBE32Neon32bytes(unsigned char* ptr, uint32_t* x)
 {
     alignas(16) uint32x4_t *dst = reinterpret_cast<uint32x4_t*>(ptr);
     *dst++ = vreinterpretq_u32_u8(vrev32q_u8(vreinterpretq_u8_u32(vld1q_u32(x))));
