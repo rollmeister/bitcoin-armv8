@@ -1,7 +1,8 @@
-This fork of the official Bitcoin Core wallet and node software employs hardware acceleration features on ArmV8. It can be used on Cortex-a53 and higher based cpu's running Linux. Raspberry Pi 3 Model B+ (and later model) single board computers should work even if using the 32-bit Rasbpian Linux OS, though this is untested at time of writing. If you board lacks the required hardware extensions ("cat /proc/cpuinfo" check for sha1, sha2, pmull & crc32 Features), the software will either fail to compile or run.
+This fork of the official Bitcoin Core wallet and node software employs hardware acceleration features on ArmV8. It can be used on Cortex-a53 and higher based cpu's running Linux. Raspberry Pi 3 Model B+ (and later model) single board computers should work even if using the 32-bit Rasbpian Linux OS, though this is untested at time of writing. If you board lacks the required hardware extensions ("cat /proc/cpuinfo" check for sha1, sha2, pmull & crc32 Features), the software will either fail to compile or run.  
 
+*Update. SHA256D64 is currently routed through sha256_armv8::TransformD64Wrapper<sha256_armv8::Transform> with about 25% performance penalty of a fully optimised TransformD64 which is currently broken.  
 Below are benchmark comparisons of the original and forked repository outputted by src/bench/bench_bitcoin.
-Tests that had negligible difference were removed. The most notable gain is the SHA256 tests. SHA256D64_1024 indicates no benefit however also does not apply in this case as whilst a new SHA256D64 function is defined in src/crypto/sha256.cpp, only the benchmarking utility employs it at time of writing. The Bitcoin Core still uses the multiple SHA256 Transform's to compute SHA256D and so gains from the ArmV8 crypto acceleration with ≈700% benchmarked improvement compared to default C++ implementation.
+Tests that had negligible difference were removed. The most notable gain is the SHA256 tests.
 
 Benchmark (real world significance in bold) | Percentage improvement
 ------------ | -------------
